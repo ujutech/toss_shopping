@@ -7,6 +7,8 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +16,8 @@ import java.io.IOException;
 
 @Service
 public class TossAuthClient {
+
+    private static final Logger log = LoggerFactory.getLogger(TossAuthClient.class);
 
     private static final String TOKEN_URL = "https://oauth2.cert.toss.im/token";
     private static final String SCOPE = "toss-shopping-fep:write";
@@ -43,14 +47,19 @@ public class TossAuthClient {
     }
 
     public synchronized void invalidateToken() {
+        log.warn("액세스 토큰 무효화 (401 응답으로 인한 재발급 예정)");
         cachedToken = null;
         tokenExpiryTime = 0;
     }
 
     public synchronized TossTokenResponse getAccessToken() throws IOException {
         if (cachedToken == null || System.currentTimeMillis() >= tokenExpiryTime) {
+            log.info("액세스 토큰 신규 발급 요청");
             cachedToken = fetchToken();
             tokenExpiryTime = System.currentTimeMillis() + TOKEN_VALID_MILLIS;
+            log.info("액세스 토큰 발급 완료 (유효시간: 59분)");
+        } else {
+            log.debug("캐시된 액세스 토큰 사용");
         }
         return cachedToken;
     }
@@ -73,6 +82,7 @@ public class TossAuthClient {
             String responseBody = response.body() != null ? response.body().string() : "";
 
             if (!response.isSuccessful()) {
+                log.error("토스 인증 실패 - HTTP {}: {}", response.code(), responseBody);
                 throw new IOException("토스 인증 실패 - HTTP " + response.code() + ": " + responseBody);
             }
 
